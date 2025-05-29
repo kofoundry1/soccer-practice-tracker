@@ -1,6 +1,7 @@
 json{
-  "name": "soccer-practice-tracker",
+  "name": "soccer-coach-api",
   "version": "1.0.0",
+  "type": "module",
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0"
   }
