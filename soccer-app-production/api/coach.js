@@ -1,4 +1,4 @@
-javascriptimport { createClient } from '@supabase/supabase-js';
+import { createClient } from '@supabase/supabase-js';
 
 // Initialize Supabase
 const supabase = createClient(
@@ -94,7 +94,7 @@ export default async function handler(req, res) {
         'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini', // More cost-effective than gpt-4
+        model: 'gpt-4o-mini',
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: message }
@@ -117,7 +117,7 @@ export default async function handler(req, res) {
         .from('coach_interactions')
         .insert([{
           player_id: playerId,
-          user_message: message.substring(0, 200), // Truncate for storage
+          user_message: message.substring(0, 200),
           coach_response_length: coachResponse.length,
           created_at: new Date().toISOString()
         }]);
