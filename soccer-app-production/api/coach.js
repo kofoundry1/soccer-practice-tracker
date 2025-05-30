@@ -7,7 +7,7 @@ const supabase = createClient(
 
 export default async function handler(req, res) {
   // Handle CORS
-  res.setHeader('Access-Control-Allow-Origin', 'https://www.soccervoals365.com'); // <- your domain
+  res.setHeader('Access-Control-Allow-Origin', 'https://www.soccergoals365.com'); // <- your domain
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,POST');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   res.setHeader('Access-Control-Allow-Credentials', 'true');
