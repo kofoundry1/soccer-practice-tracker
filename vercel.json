@@ -11,6 +11,6 @@
     }
   ],
   "functions": {
-    "api/coach.js": { "maxDuration": 30 }
+    "pages/api/coach.js": { "maxDuration": 30 }
   }
 }
