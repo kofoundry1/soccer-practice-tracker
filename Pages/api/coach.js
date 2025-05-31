@@ -1,21 +1,21 @@
-import { createClient } from '@supabase/supabase-js';
+const { createClient } = require('@supabase/supabase-js');
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_KEY
 );
 
-export default async function handler(req, res) {
-  // Handle CORS
-  res.setHeader('Access-Control-Allow-Origin', 'https://www.soccergoals365.com'); // <- your domain
-  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,POST');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+module.exports = async function handler(req, res) {
+  // === CORS HANDLING ===
+  res.setHeader('Access-Control-Allow-Origin', 'https://www.soccergoals365.com');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   res.setHeader('Access-Control-Allow-Credentials', 'true');
 
   if (req.method === 'OPTIONS') {
-    res.status(200).end();
-    return;
+    return res.status(200).end();
   }
+  // === END CORS HANDLING ===
 
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -23,7 +23,6 @@ export default async function handler(req, res) {
 
   try {
     const { message, playerId } = req.body;
-
     if (!message || !playerId) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
@@ -40,7 +39,7 @@ export default async function handler(req, res) {
       return res.status(404).json({ error: 'Player not found' });
     }
 
-    // Get recent sessions with drill details
+    // Get recent sessions
     const { data: sessions, error: sessionsError } = await supabase
       .from('practice_sessions')
       .select('*, drills(name, result_label)')
@@ -48,59 +47,23 @@ export default async function handler(req, res) {
       .order('created_at', { ascending: false })
       .limit(5);
 
-    if (sessionsError) {
-      console.error('Sessions fetch error:', sessionsError);
-    }
+    if (sessionsError) console.error('Sessions fetch error:', sessionsError);
 
-    // Calculate player stats
-    const totalSessions = player.total_sessions || 0;
-    const recentSessionCount = sessions?.length || 0;
+    // Build coaching prompt based on player data and recent sessions
+    const playerContext = `Player: ${player.name || 'Unknown'}, Level: ${player.level || 'Beginner'}`;
+    const sessionContext = sessions && sessions.length > 0 
+      ? `Recent practice sessions: ${sessions.map(s => `${s.drills?.name || 'General practice'} - ${s.drills?.result_label || 'Completed'}`).join(', ')}`
+      : 'No recent practice sessions';
+
+    const prompt = `You are Coach Sarah, a friendly and encouraging youth soccer coach. 
     
-    // Analyze practice patterns
-    let practiceInsights = '';
-    if (sessions && sessions.length > 0) {
-      const drillCounts = {};
-      let totalMinutes = 0;
-      let totalResults = 0;
-      
-      sessions.forEach(session => {
-        const drillName = session.drills?.name || 'Unknown Drill';
-        drillCounts[drillName] = (drillCounts[drillName] || 0) + 1;
-        totalMinutes += session.duration_minutes || 0;
-        totalResults += session.result || 0;
-      });
-      
-      const favoriteDrill = Object.entries(drillCounts).sort((a, b) => b[1] - a[1])[0];
-      practiceInsights = `Recently practiced ${favoriteDrill[0]} ${favoriteDrill[1]} times. Total ${totalMinutes} minutes in last 5 sessions.`;
-    }
+Player context: ${playerContext}
+${sessionContext}
 
-    // Build coaching prompt with more context
-    const systemPrompt = `You are Coach Sarah, an enthusiastic and encouraging AI soccer coach for kids. You use neuroscience-based coaching principles.
+Player's message: "${message}"
 
-PLAYER PROFILE:
-- Name: ${player.display_name}
-- Age: ${player.age || 'Unknown'}
-- Level: ${player.level}
-- Total Practice Sessions: ${totalSessions}
-- Tokens Earned: ${player.tokens}
-- Favorite Foot: ${player.favorite_foot === 'L' ? 'Left' : 'Right'}
-- Team: ${player.team_name || 'No team yet'}
-- Favorite Player: ${player.favorite_player || 'Not specified'}
+Respond as Coach Sarah with helpful, age-appropriate advice. Keep it encouraging, specific, and under 200 words.`;
 
-RECENT ACTIVITY:
-- ${recentSessionCount} sessions in the last week
-- ${practiceInsights}
-
-COACHING STYLE:
-- Use lots of emojis and enthusiasm
-- Reference neuroscience and brain development when explaining why practice helps
-- Give specific, actionable advice
-- Celebrate their progress and effort
-- Keep responses to 2-3 short paragraphs
-- Be positive and motivating
-- Suggest specific drills when appropriate`;
-
-    // Call OpenAI API
     const openaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -110,8 +73,14 @@ COACHING STYLE:
       body: JSON.stringify({
         model: 'gpt-4o-mini',
         messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: message }
+          {
+            role: 'system',
+            content: 'You are Coach Sarah, a friendly and encouraging youth soccer coach.'
+          },
+          {
+            role: 'user',
+            content: prompt
+          }
         ],
         max_tokens: 300,
         temperature: 0.8
@@ -127,20 +96,21 @@ COACHING STYLE:
     const data = await openaiResponse.json();
     const coachResponse = data.choices[0].message.content;
 
-    // Log the coaching interaction (optional)
-    await supabase
-      .from('coaching_logs')
-      .insert([{
-        player_id: playerId,
-        user_message: message,
-        coach_response: coachResponse
-      }])
-      .select();
+    // Optional logging
+    try {
+      await supabase.from('coaching_logs').insert([{ 
+        player_id: playerId, 
+        user_message: message, 
+        coach_response: coachResponse 
+      }]);
+    } catch (logError) {
+      console.error('Logging error:', logError);
+      // Don't fail the request if logging fails
+    }
 
     res.status(200).json({ response: coachResponse });
-
   } catch (error) {
     console.error('Coach API error:', error);
     res.status(500).json({ error: 'Internal server error', details: error.message });
   }
-}
+};
