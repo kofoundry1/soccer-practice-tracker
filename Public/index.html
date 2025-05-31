@@ -12,11 +12,15 @@
     .container { max-width: 800px; margin: 2rem auto; padding: 0 1rem; }
     .question-section { background: #fff; padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
     .question-section h2 { margin-top: 0; }
-    .question-section input { width: 100%; padding: 0.75rem; font-size: 1rem; margin-bottom: 1rem; border: 1px solid #ccc; border-radius: 4px; }
-    .question-section button { padding: 0.75rem 1.5rem; font-size: 1rem; background: #ffcc00; border: none; border-radius: 4px; cursor: pointer; }
+    .question-section input { width: 100%; padding: 0.75rem; font-size: 1rem; margin-bottom: 1rem; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+    .question-section button { padding: 0.75rem 1.5rem; font-size: 1rem; background: #ffcc00; border: none; border-radius: 4px; cursor: pointer; transition: background-color 0.2s; }
+    .question-section button:hover { background: #e6b800; }
+    .question-section button:disabled { background: #ccc; cursor: not-allowed; }
     .answer-section { margin-top: 2rem; background: #fff; padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); min-height: 100px; }
     .answer-section h3 { margin-top: 0; }
     .answer-text { white-space: pre-wrap; line-height: 1.6; }
+    .loading { color: #666; font-style: italic; }
+    .error { color: #d32f2f; }
   </style>
 </head>
 <body>
@@ -44,28 +48,49 @@
 
     async function askCoach() {
       const question = inputEl.value.trim();
-      if (!question) return;
+      if (!question) {
+        alert('Please enter a question first!');
+        return;
+      }
+      
       askBtn.disabled = true;
       answerTextEl.textContent = 'Coach Sarah is thinking... ⚽️';
+      answerTextEl.className = 'answer-text loading';
 
       try {
-        const res = await fetch('/api/coach.js', {
+        const res = await fetch('/api/coach', {  // Fixed: removed .js extension
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ message: question, playerId: 1 })
         });
+        
+        if (!res.ok) {
+          throw new Error(`HTTP error! status: ${res.status}`);
+        }
+        
         const data = await res.json();
+        
+        if (data.error) {
+          throw new Error(data.error);
+        }
+        
         answerTextEl.textContent = data.response;
+        answerTextEl.className = 'answer-text';
+        inputEl.value = ''; // Clear input after successful response
+        
       } catch (err) {
-        answerTextEl.textContent = 'Sorry, something went wrong. Please try again later.';
+        console.error('Error:', err);
+        answerTextEl.textContent = `Sorry, something went wrong: ${err.message}. Please try again later.`;
+        answerTextEl.className = 'answer-text error';
       } finally {
         askBtn.disabled = false;
       }
     }
 
     askBtn.addEventListener('click', askCoach);
-    inputEl.addEventListener('keypress', e => { if (e.key === 'Enter') askCoach(); });
+    inputEl.addEventListener('keypress', e => { 
+      if (e.key === 'Enter') askCoach(); 
+    });
   </script>
 </body>
 </html>
-
